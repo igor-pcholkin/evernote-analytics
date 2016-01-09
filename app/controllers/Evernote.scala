@@ -50,8 +50,7 @@ object Evernote extends Controller {
             "token" -> t.token,
             "secret" -> t.secret,
             "noteStoreUrl" -> noteStoreUrl,
-            "notebooks" -> notebooks
-          )
+            "notebooks" -> notebooks)
         }
         case Left(e) => throw e
       }
