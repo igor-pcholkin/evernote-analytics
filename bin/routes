@@ -15,4 +15,4 @@ GET     /assets/*file               controllers.Assets.at(path="/public", file)
 GET     /authenticate               controllers.Evernote.authenticate
 GET     /auth                       controllers.Evernote.authenticate
 
-GET     /notes                      controllers.Application.notes(monthBack, title: Option[String], searchByIndentation: Boolean ?= false, textInside: Option[String])
+GET     /notes                      controllers.Application.notes(title: Option[String], searchByIndentation: Boolean ?= false, textInside: Option[String])

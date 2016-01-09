@@ -52,7 +52,7 @@ object Application extends Controller {
     Ok(html.index()).withNewSession
   }
 
-  def notes(monthBack: String, title: Option[String] = None, searchByIndentation: Boolean, textInside: Option[String] = None) = 
+  def notes(title: Option[String] = None, searchByIndentation: Boolean, textInside: Option[String] = None) = 
     Action { implicit request =>
       
     val pipedOutputStream = new PipedOutputStream()
@@ -67,7 +67,7 @@ object Application extends Controller {
           val noteStoreProt: TBinaryProtocol = new TBinaryProtocol(noteStoreTrans)
           val noteStore: NoteStore.Client = new NoteStore.Client(noteStoreProt, noteStoreProt)
           Future {
-            searchNotes(monthBack.toInt, title, searchByIndentation, textInside, ps) (noteStore, token)
+            searchNotes(title, searchByIndentation, textInside, ps) (noteStore, token)
           }
         case None => throw new RuntimeException("token not found")
         }
@@ -80,7 +80,7 @@ object Application extends Controller {
   /**
 	 * Search a user's notes and display the results.
 	 */
-	def searchNotes(monthBack: Int, title: Option[String], searchByIndentation: Boolean, textInside: Option[String], ps: PrintStream) 
+	def searchNotes(title: Option[String], searchByIndentation: Boolean, textInside: Option[String], ps: PrintStream) 
 	  (implicit noteStore: NoteStore.Client, token: String) = {
 	  
 	  @tailrec
@@ -103,7 +103,6 @@ object Application extends Controller {
   		  endNoteAggregation
 	  }
 	  
-	  val restrictionBasedOnTime = getMonthRestrictions(monthBack)
 	  val titleFilter = title match {
       case Some(t) => s"intitle:$t "
       case None => ""
@@ -112,7 +111,6 @@ object Application extends Controller {
 	    case Some(t) => s"$t"
 	    case None => ""
 	  }
-		//val query = s"$titleFilter$restrictionBasedOnTime $textInsideFilter" 
 	  val query = s"$titleFilter $textInsideFilter"
 
 		implicit val filter = new NoteFilter();
@@ -125,7 +123,6 @@ object Application extends Controller {
 		
 		ps.println(endNoteAggregation)
 		ps.close
-		//noteCountsByMonthBuf.groupBy(_._1).map { case (month, buf) => month -> buf.map { case (m, v) => v }. sum }
 	}
 
 	def aggregateByMonthAndPrintCounts(notes: java.util.List[Note], startMonth: String, searchByIndentation: Boolean, 
@@ -182,24 +179,10 @@ object Application extends Controller {
         else
           s"${textInsideRegex}"
       
-      //println(s"patternText = $patternText")
-      
   		val p = Pattern.compile(patternText);
       val m = p.matcher(noteText);
       goMatcher(m, 0)
     } else 1
   }
 	
-	def getMonthRestrictions(monthBack: Int) = {
-		val timeFrom = Calendar.getInstance();
-		timeFrom.set(Calendar.DAY_OF_MONTH, 1);
-		timeFrom.add(Calendar.MONTH, -monthBack);
-
-		val timeTo = timeFrom.clone().asInstanceOf[Calendar]
-		timeTo.add(Calendar.MONTH, 1);
-
-		val format = new SimpleDateFormat("yyyyMMdd");
-		"created:" + format.format(timeFrom.getTime()) + " -created:" +
-				format.format(timeTo.getTime());
-	}     
 }
