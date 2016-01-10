@@ -37,13 +37,7 @@ object Evernote extends Controller {
       // We got the verifier; now get the access token, store it and back to index
       EVERNOTE.retrieveAccessToken(tokenPair, verifier) match {
         case Right(t) => {
-          val userStoreTrans: THttpClient = new THttpClient(USER_STORE_URL)
-          val userStoreProt: TBinaryProtocol = new TBinaryProtocol(userStoreTrans)
-          val userStore: UserStore.Client = new UserStore.Client(userStoreProt, userStoreProt)
-          val noteStoreUrl: String = userStore.getNoteStoreUrl(t.token)
-          val noteStoreTrans: THttpClient = new THttpClient(noteStoreUrl)
-          val noteStoreProt: TBinaryProtocol = new TBinaryProtocol(noteStoreTrans)
-          val noteStore: NoteStore.Client = new NoteStore.Client(noteStoreProt, noteStoreProt)
+          val (noteStore, noteStoreUrl) = createNoteStoreClient(t.token)
           val notebooks: String = noteStore.listNotebooks(t.token).map(_.getName).mkString(",")
           // We received the authorized tokens in the OAuth object - store it before we proceed
           Redirect(routes.Application.index).withSession(
@@ -71,5 +65,15 @@ object Evernote extends Controller {
     } yield {
       RequestToken(token, secret)
     }
+  }
+
+  def createNoteStoreClient(token: String) = {
+    val userStoreTrans: THttpClient = new THttpClient(USER_STORE_URL)
+    val userStoreProt: TBinaryProtocol = new TBinaryProtocol(userStoreTrans)
+    val userStore: UserStore.Client = new UserStore.Client(userStoreProt, userStoreProt)
+    val noteStoreUrl: String = userStore.getNoteStoreUrl(token)
+    val noteStoreTrans: THttpClient = new THttpClient(noteStoreUrl)
+    val noteStoreProt: TBinaryProtocol = new TBinaryProtocol(noteStoreTrans)
+    (new NoteStore.Client(noteStoreProt, noteStoreProt), noteStoreUrl)
   }
 }

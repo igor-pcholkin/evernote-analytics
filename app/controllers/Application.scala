@@ -33,9 +33,6 @@ import annotation.tailrec
 
 object Application extends Controller {
 
-  val mode = "www"
-  val USER_STORE_URL = s"https://$mode.evernote.com/edam/user"
-
   val startFakeMonth = "1/1900"
 
   /**
@@ -60,13 +57,7 @@ object Application extends Controller {
       request.session.get("token") match {
         case Some(token) =>
           println(s"token: $token")
-          val userStoreTrans = new THttpClient(USER_STORE_URL)
-          val userStoreProt: TBinaryProtocol = new TBinaryProtocol(userStoreTrans)
-          val userStore: UserStore.Client = new UserStore.Client(userStoreProt, userStoreProt)
-          val noteStoreUrl: String = userStore.getNoteStoreUrl(token)
-          val noteStoreTrans: THttpClient = new THttpClient(noteStoreUrl)
-          val noteStoreProt: TBinaryProtocol = new TBinaryProtocol(noteStoreTrans)
-          val noteStore: NoteStore.Client = new NoteStore.Client(noteStoreProt, noteStoreProt)
+          val (noteStore, noteStoreUrl) = Evernote.createNoteStoreClient(token)
           Future {
             searchNotes(title, searchByIndentation, textInside, ps)(noteStore, token)
           }
@@ -75,7 +66,6 @@ object Application extends Controller {
 
       val istream = new PipedInputStream(pipedOutputStream)
       Ok.chunked(Enumerator.fromStream(istream).andThen(Enumerator.eof)).as("text/html")
-      //Ok(notes.toString())
     }
 
   /**
@@ -91,11 +81,13 @@ object Application extends Controller {
 
       println(s"Found $totalNoteCount matching notes");
       println(s"Current chunk offset: $offset, length: " + noteChunk.length)
-      println("Last note: " + getMonth(noteChunk.last))
 
       val endNoteAggregation = aggregateByMonthAndPrintCounts(noteChunk, startMonthAggregation, searchByIndentation, textInside, ps)
 
       val newOffset = offset + noteChunk.length
+
+      println(s"newOffset: $newOffset, totalNoteCount: $totalNoteCount")
+
       if (newOffset < totalNoteCount)
         goFindNotes(newOffset, endNoteAggregation)
       else
@@ -120,9 +112,13 @@ object Application extends Controller {
     println("Searching for notes matching query: " + query);
     val endNoteAggregation = goFindNotes(0, (startFakeMonth, 0))
 
-    ps.println(endNoteAggregation)
+    println(s"End note aggregation: $endNoteAggregation")
+
+    outputAggregation(ps, endNoteAggregation)
     ps.close
   }
+
+  def outputAggregation(ps: PrintStream, aggregation: (String, Int)) = if (aggregation._2 != 0) ps.println(aggregation)
 
   def aggregateByMonthAndPrintCounts(notes: java.util.List[Note], startMonthAggregation: (String, Int), searchByIndentation: Boolean,
                                      textInside: Option[String], ps: PrintStream)(implicit noteStore: NoteStore.Client, token: String) = {
@@ -140,7 +136,7 @@ object Application extends Controller {
           (currentMonth, currentMonthCount + noteFeatureCount)
         else {
           if (currentMonth != startFakeMonth) {
-            ps.println(currentMonth -> currentMonthCount)
+            outputAggregation(ps, currentMonth -> currentMonthCount)
           }
           (noteMonth, noteFeatureCount)
         }
