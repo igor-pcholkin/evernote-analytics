@@ -59,6 +59,7 @@ object Application extends Controller {
       val ps = new PrintStream(pipedOutputStream)
       request.session.get("token") match {
         case Some(token) =>
+          println(s"token: $token")
           val userStoreTrans = new THttpClient(USER_STORE_URL)
           val userStoreProt: TBinaryProtocol = new TBinaryProtocol(userStoreTrans)
           val userStore: UserStore.Client = new UserStore.Client(userStoreProt, userStoreProt)
