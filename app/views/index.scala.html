@@ -1,12 +1,88 @@
 @()(implicit session: play.api.mvc.Session) 
 @import helper._
 
-@main(title = "Evernote SDK Java sample for Scala / Play ") {
+@scripts = {
+}
 
-  <p>
-    This application uses the <a href='http://www.playframework.com/'>Play</a> framework to demonstrate the use of OAuth to authenticate to the Evernote web service.
-  </p>
-  <hr/>
+@main(title = "Evernote Analytics") {
+<!--Load the AJAX API-->
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script type="text/javascript">
+					// Load the Visualization API and the piechart package.
+					google.load('visualization', '1', {
+						'packages' : [ 'corechart' ]
+					});
+
+					// Set a callback to run when the Google Visualization API is loaded.
+					google.setOnLoadCallback(drawChart);
+
+					function getLastChunkIndex(newData) {
+
+					}
+
+					function drawChart() {
+						// Instantiate and draw our chart, passing in some options.
+						var lineChart = new google.visualization.LineChart(
+								document.getElementById('line_chart_div'));
+						var pieChart = new google.visualization.PieChart(
+								document.getElementById('pie_chart_div'));
+						var data = new google.visualization.DataTable();
+						data.addColumn('string', 'month');
+						data.addColumn('number', 'count');
+						var chartOptions = {
+							width : 400,
+							height : 240
+						};
+						lineChart.draw(data, chartOptions);
+						pieChart.draw(data, chartOptions);
+						var expectedChunkIndex = 0;
+						var xhr = new XMLHttpRequest();
+						xhr.open("GET", "/notes?textInside=Scala", true);
+						xhr.onprogress = function() {
+							var expectedChunkIndexStr = "#"
+									+ expectedChunkIndex + ": ";
+							var combinedResponse = xhr.responseText
+							var newData = combinedResponse
+									.substr(combinedResponse
+											.search(expectedChunkIndexStr)
+											+ expectedChunkIndexStr.length);
+
+							// update chunkIndex to last chunk index
+							var liRegEx = /#[0-9]+:/g
+							var chunkIndexStr = expectedChunkIndexStr;
+							while (liRegEx.test(newData)) {
+								chunkIndexStr = RegExp.lastMatch;
+							}
+							expectedChunkIndex = Number(chunkIndexStr.substr(1,
+									chunkIndexStr.indexOf(":") - 1)) + 1
+
+							var newRowsStr = newData.replace(/#[0-9]+: /, ",")
+									.split(",");
+							var newRows = newRowsStr.map(function(rowStr) {
+								var row = rowStr.split(":");
+								return [ row[0], Number(row[1]) ];
+							})
+
+							data.addRows(newRows);
+							console.log("new data: " + data);
+							console.log("new data row count: "
+									+ data.getNumberOfRows());
+							lineChart.draw(data, chartOptions);
+							pieChart.draw(data, chartOptions);
+							document.getElementById('blabal').innerHTML = combinedResponse;
+						}
+						xhr.send()
+					}
+				</script>
+
+  <div id="blabal"></div>
+
+  <div id="charts"> 
+	  <div id="line_chart_div"></div>
+	  <div id="pie_chart_div"></div>
+  </div>
+
   <h2>Authentication</h2>
     @if(session.get("token").isEmpty) {
       <a href='/authenticate'>Click here</a> to connect Evernote
@@ -14,28 +90,4 @@
       <a href='/clear'>Click here</a> to start over
     }
   <hr/>
-  @if(!session.get("notebooks").isEmpty) {
-    <h2>Notebooks</h2>
-    <ul>
-      @for(notebook <- session.get("notebooks").get.split(",")) {
-        <li>@notebook</li>
-      }
-    </ul>
-    <hr/>
-  }
-  <h2>Current status</h2>
-  <ul>
-    <li>
-      <b>NoteStore URL:</b>
-      @session.get("noteStoreUrl")
-    </li>
-  </ul>
-  <h3>Token Credentials:</h3>
-  <ul>
-    <li>
-      <b>token:</b>
-      @session.get("token")
-    </li>
-  </ul>
-
 }

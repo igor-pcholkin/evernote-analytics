@@ -3,8 +3,6 @@ package evernoteanalytics
 
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
-import scala.concurrent.duration._
-import java.util.Random
 
 class BasicSimulation extends Simulation {
 

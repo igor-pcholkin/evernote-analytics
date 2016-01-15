@@ -73,3 +73,7 @@ ul {
     padding-left: 20px;
 }
 
+#charts div {
+	display: inline-block;
+}
+

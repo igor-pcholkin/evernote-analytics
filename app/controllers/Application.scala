@@ -30,6 +30,7 @@ import java.io.DataOutputStream
 import java.io.PrintStream
 import scala.concurrent.Future
 import annotation.tailrec
+import com.evernote.edam.notestore.NotesMetadataResultSpec
 
 object Application extends Controller {
 
@@ -74,13 +75,15 @@ object Application extends Controller {
   def searchNotes(title: Option[String], searchByIndentation: Boolean, textInside: Option[String], ps: PrintStream)(implicit noteStore: NoteStore.Client, token: String) = {
 
     @tailrec
-    def goFindNotes(offset: Int, startMonthAggregation: (String, Int))(implicit filter: NoteFilter): (String, Int) = {
+    def goFindNotes(offset: Int, startMonthAggregation: (String, Int, Int))(implicit filter: NoteFilter): (String, Int, Int) = {
       val noteList = noteStore.findNotes(token, filter, offset, 50);
       val noteChunk = noteList.getNotes
       val totalNoteCount = noteList.getTotalNotes()
 
       println(s"Found $totalNoteCount matching notes");
       println(s"Current chunk offset: $offset, length: " + noteChunk.length)
+      println(s"Searched words: ${noteList.getSearchedWordsSize}")
+      println(s"startMonthAggregation: $startMonthAggregation")
 
       val endNoteAggregation = aggregateByMonthAndPrintCounts(noteChunk, startMonthAggregation, searchByIndentation, textInside, ps)
 
@@ -110,38 +113,57 @@ object Application extends Controller {
     filter.setAscending(true);
 
     println("Searching for notes matching query: " + query);
-    val endNoteAggregation = goFindNotes(0, (startFakeMonth, 0))
+    val endNoteAggregation = goFindNotes(0, (startFakeMonth, 0, 0))
 
     println(s"End note aggregation: $endNoteAggregation")
 
-    outputAggregation(ps, endNoteAggregation)
-    ps.close
+    outputAggregation(ps, endNoteAggregation, true)
   }
 
-  def outputAggregation(ps: PrintStream, aggregation: (String, Int)) = if (aggregation._2 != 0) ps.println(aggregation)
+  def outputAggregation(ps: PrintStream, aggregation: (String, Int, Int), finish: Boolean = false): Boolean = {
+    println(s"Output aggregation: $aggregation")
+    val (month, count, outputIndex) = aggregation
+    val outputPerformed = if (count != 0) {
+      ps.println(s"#$outputIndex: $month:$count")
+      true
+    } else {
+      false
+    }
+    if (finish) {
+      ps.close
+    }
+    outputPerformed
+  }
 
-  def aggregateByMonthAndPrintCounts(notes: java.util.List[Note], startMonthAggregation: (String, Int), searchByIndentation: Boolean,
+  def aggregateByMonthAndPrintCounts(notes: java.util.List[Note], startMonthAggregation: (String, Int, Int), searchByIndentation: Boolean,
                                      textInside: Option[String], ps: PrintStream)(implicit noteStore: NoteStore.Client, token: String) = {
     val endNoteAggregation = notes.foldLeft(startMonthAggregation) {
-      case ((currentMonth, currentMonthCount), note) =>
+      case ((currentMonth, currentMonthCount, outputIndex), note) =>
         val noteMonth = getMonth(note)
         val noteFeatureCount = getFeatureCountByNote(note, searchByIndentation, textInside)
 
-        if (noteFeatureCount == 0) {
-          println("Note with no match!")
-          println(note.getContent())
-        }
-
         if (currentMonth == noteMonth)
-          (currentMonth, currentMonthCount + noteFeatureCount)
+          (currentMonth, currentMonthCount + noteFeatureCount, outputIndex)
         else {
-          if (currentMonth != startFakeMonth) {
-            outputAggregation(ps, currentMonth -> currentMonthCount)
+          val outputPerformed = if (currentMonth != startFakeMonth) {
+            outputAggregation(ps, (currentMonth, currentMonthCount, outputIndex))
+          } else {
+            false
           }
-          (noteMonth, noteFeatureCount)
+          startAggregationForNewMonth((noteMonth, noteFeatureCount, outputIndex), outputPerformed)
         }
     }
     endNoteAggregation
+  }
+
+  def startAggregationForNewMonth(startNote: (String, Int, Int), outputPerformed: Boolean) = {
+    println(s"Start aggregation: $startNote")
+    val newOutputIndex = if (outputPerformed) {
+      startNote._3 + 1
+    } else {
+      startNote._3
+    }
+    (startNote._1, startNote._2, newOutputIndex)
   }
 
   def getMonth(note: Note) = {
@@ -154,7 +176,6 @@ object Application extends Controller {
   def getFeatureCountByNote(note: Note, searchByIndentation: Boolean, textInside: Option[String])(implicit noteStore: NoteStore.Client, token: String): Int = {
     @tailrec
     def goMatcher(m: Matcher, count: Int): Int = if (m.find) {
-      println(s"Matched: ${m.group()}")
       goMatcher(m, count + 1)
     } else count
 
